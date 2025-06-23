@@ -2,6 +2,8 @@ const express = require("express");
 const { auth, userauth } = require("./middlewares/auth");
 const connectionDB = require("./config/database");
 const User = require("./models/user");
+const { validateSignup } = require("./utils/validation");
+const bcrypt = require("bcrypt");
 const app = express();
 
 app.use(express.json()); // middleWare to read the json data...
@@ -42,12 +44,29 @@ app.use(express.json()); // middleWare to read the json data...
 
 // data baselogic
 
-
 //Send the User info..
 app.post("/signup", async (req, res) => {
-  const user = new User(req.body);
+  const { emailId, password } = req.body;
 
   try {
+    validateSignup(req);
+
+    const { firstName, lastName, emailId, password } = req.body;
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    console.log(passwordHash);
+
+    const existing = await User.findOne({ emailId }); // logic use fir if the email is already used or not
+    if (existing) {
+      return res.status(400).send("User with this email already exists");
+    }
+
+    const user = new User({
+      firstName,
+      lastName,
+      emailId,
+      password: passwordHash, // Store the hashed password
+    });
     await user.save();
     res.send("User Added Successfully!");
   } catch (err) {
@@ -55,8 +74,51 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+app.post("/login", async (req, res) => {
+  try {
+    const { emailId, password } = req.body;
 
-//get the user when match the Email to the database  
+    // Validate the input
+    if (!emailId || !password) {
+      return res.status(400).send("Email and password are required");
+    }
+
+    // Find the user by email
+    const user = await User.findOne({ emailId });
+    if (!user) {
+      return res.status(400).send("User not found in DB");
+    }
+
+    // Compare the password with the hashed password in the database
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).send("Invalid credentials");
+    }
+
+    res.cookie("userId", user._id, {
+      httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
+      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      maxAge: 24 * 60 * 60 * 1000, // Cookie
+      });
+
+    res.send("✅ Login successful");
+  } catch (err) {
+    res.status(500).send("Error logging in: " + err.message);
+  }
+});
+
+app.get("/profile", userauth, async (req, res) => {
+ 
+  const cookie = req.cookies;
+   
+    console.log("Cookie:", cookie);
+}) 
+
+
+
+
+
+//get the user when match the Email to the database
 app.get("/user", async (req, res) => {
   const userEmail = req.body.emailId;
   try {
@@ -71,17 +133,64 @@ app.get("/user", async (req, res) => {
   }
 });
 
-
-// get all the user existing in this database 
+// get all the user existing in this database
 app.get("/all", async (req, res) => {
   try {
     const users = await User.find({});
     res.send(users);
-  }  catch (err){
+  } catch (err) {
     res.status(400).send("Error fetching the user : " + err.message);
   }
-})
+});
 
+app.patch("/user/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const data = req.body;
+
+  try {
+    const allowedFields = [
+      "firstName",
+      "lastName",
+      "password",
+      "gender",
+      "age",
+      "photoUrl",
+      "About",
+      "Skills",
+    ];
+
+    const isUpdateAllowed = Object.keys(data).every((key) =>
+      allowedFields.includes(key)
+    );
+
+    if (!isUpdateAllowed) {
+      return res.status(400).send("Invalid fields in the request");
+    }
+
+    if (data.Skills.length > 10) {
+      return res.status(400).send("Skills cannot exceed 10 items");
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, data, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedUser) {
+      return res.status(404).send("User not found");
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).send("Something went wrong");
+  }
+});
+
+// Database Connection
 connectionDB()
   .then(() => {
     console.log("✅ Database Connection is Successfully...");
