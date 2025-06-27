@@ -4,9 +4,12 @@ const connectionDB = require("./config/database");
 const User = require("./models/user");
 const { validateSignup } = require("./utils/validation");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 const app = express();
 
 app.use(express.json()); // middleWare to read the json data...
+app.use(cookieParser());    // Middleware to parse cookies
 
 // // Sample user data (mocked like a database)
 // const users = [
@@ -92,14 +95,15 @@ app.post("/login", async (req, res) => {
     // Compare the password with the hashed password in the database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).send("Invalid credentials");
+      return res.status(400).send("Invalid credentials"); 
     }
 
-    res.cookie("userId", user._id, {
-      httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
-      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
-      maxAge: 24 * 60 * 60 * 1000, // Cookie
-      });
+
+    const token = jwt.sign({_id: user._id }, "@Sayak@123");         // // Generate a JWT token and hide user id and generate a secrect key
+    console.log("Token generated:", token);
+
+      
+    res.cookie("Token :", token ); 
 
     res.send("✅ Login successful");
   } catch (err) {
@@ -107,19 +111,20 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/profile", userauth, async (req, res) => {
+app.get("/profile", async (req, res) => {
  
-  const cookie = req.cookies;
-   
-    console.log("Cookie:", cookie);
-}) 
+     const cookies = req.cookies;
+
+     console.log(cookies);
+    res.send("This is your profile page");
+});
 
 
 
 
 
 //get the user when match the Email to the database
-app.get("/user", async (req, res) => {
+ app.get("/user", async (req, res) => {
   const userEmail = req.body.emailId;
   try {
     const user = await User.find({ emailId: userEmail });
@@ -203,4 +208,4 @@ connectionDB()
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on http://localhost:${PORT}`);
-});
+});   
