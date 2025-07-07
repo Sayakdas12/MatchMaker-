@@ -1,11 +1,11 @@
 const express = require("express");
-const { auth, userauth } = require("./middlewares/auth");
+const { userauth } = require("./middlewares/auth");
 const connectionDB = require("./config/database");
 const User = require("./models/user");
 const { validateSignup } = require("./utils/validation");
 const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
-const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken");  
 const app = express();
 
 app.use(express.json()); // middleWare to read the json data...
@@ -77,7 +77,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
+app.post("/login", async (req, res) => { 
   try {
     const { emailId, password } = req.body;
 
@@ -95,15 +95,24 @@ app.post("/login", async (req, res) => {
     // Compare the password with the hashed password in the database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).send("Invalid credentials"); 
+      return res.status(400).send("Invalid credentials");
     }
 
 
-    const token = jwt.sign({_id: user._id }, "@Sayak@123");         // // Generate a JWT token and hide user id and generate a secrect key
-    console.log("Token generated:", token);
+    const token = jwt.sign({ _id: user._id }, "@Sayak@123", 
+      {  
+        expiresIn: "1d",
+      });   
 
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,     // set to true in production (HTTPS)
+      sameSite: "Strict",
+      expires: new Date(Date.now() + 1000 * 60 * 60 * 24),    
       
-    res.cookie("Token :", token ); 
+       // expires the cookie 
+    });
+
 
     res.send("✅ Login successful");
   } catch (err) {
@@ -111,12 +120,17 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/profile", async (req, res) => {
- 
-     const cookies = req.cookies;
+app.get("/profile", userauth, async (req, res) => {
 
-     console.log(cookies);
-    res.send("This is your profile page");
+   try {
+      const user = req.user;
+
+      res.send(user);
+   } catch(err){
+    res.status(500).send("Error fetching user profile: " + err.message);
+   }
+ 
+   
 });
 
 
@@ -124,7 +138,7 @@ app.get("/profile", async (req, res) => {
 
 
 //get the user when match the Email to the database
- app.get("/user", async (req, res) => {
+app.get("/user", async (req, res) => {
   const userEmail = req.body.emailId;
   try {
     const user = await User.find({ emailId: userEmail });
