@@ -1,4 +1,4 @@
-// const auth = (req, res, next) => {
+ // const auth = (req, res, next) => {
 //   console.log("Admin auth is getting checked...!");
 //   const token = "sayak";
 //   const isAdminAuth = token === "sayak";
