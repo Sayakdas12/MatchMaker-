@@ -58,4 +58,43 @@ requestRouter.post("/request/send/:status/:toUserId", userauth, async (req, res)
   }
 });
 
+
+requestRouter.post("/request/review/:status/:requestId", userauth, async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+    const { status, requestId } = req.params;
+
+    const allowedStatus = ["accepted", "rejected"];
+    if (!allowedStatus.includes(status)) {
+      return res.status(400).json({ message: `❌ Invalid review status: '${status}'` });
+    }
+
+    const existingRequest = await ConnectionRequest.findOne({
+      _id: requestId,
+      toUserId: loggedInUser._id,
+      status: "interested",
+    });
+
+    if (!existingRequest) {
+      return res.status(404).json({ message: "No such connection request found or already reviewed" });
+    }
+
+    existingRequest.status = status;
+    const updated = await existingRequest.save();
+
+    res.status(200).json({
+      message: `✅ You have ${status} the request from user ${existingRequest.fromUserId}`,
+      data: updated,
+    });
+
+  } catch (err) {
+    console.error("❌ Review Error:", err);
+    res.status(500).send("❌ Server error: " + err.message);
+  }
+});
+
+
+
+
+
 module.exports = requestRouter;
