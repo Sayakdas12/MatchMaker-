@@ -59,7 +59,7 @@ requestRouter.post("/request/send/:status/:toUserId", userauth, async (req, res)
 });
 
 
-requestRouter.post("/request/review/:status/:requestId", userauth, async (req, res) => {
+requestRouter.post("/request/review/:status/:requestId", userauth, async (req, res) => {            // User request id use to be accept the request
   try {
     const loggedInUser = req.user;
     const { status, requestId } = req.params;
